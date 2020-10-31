@@ -77,6 +77,8 @@ Bellow an example running in my machine with OpenSUSE Leap 15.2.
 
 contact : Alessandro de Oliveira Faria (A.K.A.CABELO) cabelo@opensuse.org
 
+Thank you Sujata Tibewala and Emma Mai.
+
 ![](img/fraud.gif)
 
 ![](img/ok.gif)
