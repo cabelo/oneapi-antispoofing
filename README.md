@@ -13,7 +13,34 @@ Technologies Used:
 
 Below, a quick description of how to manually install the VisionPaste project.
 
-### Clone the project
+### Prepare ambient
+
+Install the openCV library and set up the oneapi development environment as in the example below.
+
+``` bash
+$ source /opt/intel/oneapi/setvars.sh 
+:: initializing oneAPI environment ...
+:: dnnl -- latest
+:: advisor -- latest
+:: dpcpp-ct -- latest
+:: dev-utilities -- latest
+:: ipp -- latest
+:: ccl -- latest
+:: compiler -- latest
+:: ippcp -- latest
+:: daal -- latest
+:: debugger -- latest
+:: mpi -- latest
+:: intelpython -- latest
+:: tbb -- latest
+:: vpl -- latest
+:: vtune -- latest
+:: mkl -- latest
+:: oneAPI environment initialized ::
+
+```
+
+### Clone and build the project
 
 Clone the repository at desired location:
 
@@ -23,20 +50,24 @@ $ cd oneapi-antispoofing
 $ mkdir build
 $ cd build
 $ cmake ..
- * Serving Flask app "server" (lazy loading)
- * Environment: production
-   WARNING: Do not use the development server in a production environment.
-   Use a production WSGI server instead.
- * Debug mode: off
- * Running on https://192.168.0.4:8080/ (Press CTRL+C to quit)
-
+$ make
 
 ```
 
+### Run the example
+
+Below, how to run the project. Enter in build folder and execute the commands:
+
+``` bash
+$ wget https://service.assuntonerd.com.br/downloads/antispoofing.weights
+$ wget https://service.assuntonerd.com.br/downloads/antispoofing.cfg
+$ make run
+
+```
 
 ### To Do
 - [x] First version
-- [ ] Publish in github
+- [x] Publish in github
 - [ ] Port to oneAPI Beta10
 - [ ] Create webserver REST
 
