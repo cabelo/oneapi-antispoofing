@@ -2,10 +2,7 @@
 
 ***Certiface AntiSpoofing*** use oneAPI for fast decode video for perform liveness detection with inference. The system is capable of spotting fake faces and performing anti-face spoofing in face recognition systems.  The user could try to hold up a your photo. Maybe they even have a photo or video on their smartphone (obtained in facebook, for example)
 
-Technologies Used:
-    oneAPI
-    openCV
-    openVINO
+Technologies Used:  oneAPI and openCV
 
 ## Installation instructions:
 
