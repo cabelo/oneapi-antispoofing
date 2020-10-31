@@ -65,7 +65,7 @@ $ make run
 ### To Do
 - [x] First version
 - [x] Publish in github
-- [ ] Port to oneAPI Beta10
+- [x] Teste and port (if necessary) to oneAPI Beta10
 - [ ] Create webserver REST
 
 ## The final result
