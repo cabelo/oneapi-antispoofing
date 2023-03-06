@@ -61,16 +61,30 @@ $ wget https://service.assuntonerd.com.br/downloads/antispoofing.cfg
 $ make run
 
 ```
+Or to test fraud, use the command below:
+
+``` bash
+$ ./antispoofing ../content/fraud-video.h265 y
+
+```
+
+To test real case, use the command below:
+
+``` bash
+$ ./antispoofing ../content/real-video.h265 y
+
+```
 
 ### To Do
 - [x] First version
 - [x] Publish in github
 - [x] Teste and port (if necessary) to oneAPI Beta10
+- [x] Teste and port (if necessary) to oneAPI 2023
 - [ ] Create webserver REST
 
 ## The final result
 
-Bellow an example running in my machine with OpenSUSE Leap 15.2.
+Bellow an example running in my machine with Linux OpenSUSE Leap 15.2, 15.3 and 15.4.
 
 contact : Alessandro de Oliveira Faria (A.K.A.CABELO) cabelo@opensuse.org
 

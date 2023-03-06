@@ -30,29 +30,39 @@ endif()
 
 if(MSVC)
   add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+  if(NOT DEFINED ENV{VSCMD_VER})
+    set(CMAKE_MSVCIDE_RUN_PATH $ENV{PATH})
+  endif()
 endif()
 
-if(TARGET mfx)
-  target_link_libraries(${TARGET} mfx)
-else()
-  if(WIN32)
-    set(VPL_NAME libmfx.lib)
-  endif()
-  message(STATUS "Check for required environment variables")
-  if(NOT DEFINED ENV{VPL_LIB})
-    message(FATAL_ERROR "Expected environment variable not defined: VPL_LIB")
-  endif()
-  if(NOT DEFINED ENV{VPL_INCLUDE})
-    message(
-      FATAL_ERROR "Expected environment variable not defined: VPL_INCLUDE")
-  endif()
+find_package(VPL REQUIRED)
+target_link_libraries(${TARGET} VPL::dispatcher)
 
-  message(STATUS "Check for presence of library")
-  find_library(VPL_LIB ${VPL_NAME} HINTS $ENV{VPL_LIB})
-  if(NOT VPL_LIB)
-    message(FATAL_ERROR "vpl library not found. Looked in $ENV{VPL_LIB}")
+if(UNIX)
+  set(LIBVA_SUPPORT
+      ON
+      CACHE BOOL "Enable hardware support.")
+  if(LIBVA_SUPPORT)
+    find_package(PkgConfig REQUIRED)
+    # note: pkg-config version for libva is *API* version
+    pkg_check_modules(PKG_LIBVA IMPORTED_TARGET libva>=1.2)
+    pkg_check_modules(PKG_LIBVA_DRM IMPORTED_TARGET libva-drm>=1.2)
+    if(PKG_LIBVA_FOUND)
+      target_compile_definitions(${TARGET} PUBLIC -DLIBVA_SUPPORT)
+      set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
+      set(THREADS_PREFER_PTHREAD_FLAG TRUE)
+      find_package(Threads REQUIRED)
+      target_link_libraries(${TARGET} PkgConfig::PKG_LIBVA
+                            PkgConfig::PKG_LIBVA_DRM Threads::Threads)
+      target_include_directories(${TARGET} PUBLIC ${PKG_LIBVA_INCLUDE_DIRS})
+    else()
+      message(
+        SEND_ERROR
+          "libva not found: set LIBVA_SUPPORT=OFF to build ${TARGET} without libva support"
+      )
+    endif()
   else()
-    message(STATUS "Using vpl library: ${VPL_LIB}")
+    message(STATUS "Building ${TARGET} without hardware support")
   endif()
   message(STATUS "OpenCV library status:")
   message(STATUS "    config: ${OpenCV_DIR}")
@@ -65,6 +75,9 @@ else()
   target_include_directories(${TARGET} PRIVATE $ENV{VPL_INCLUDE})
   target_link_libraries(${TARGET} ${VPL_LIB} ${OpenCV_LIBS})
 endif()
+
+install(TARGETS ${TARGET} RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+                                  COMPONENT dev)
 
 
 
