@@ -8,7 +8,7 @@ Technologies Used:  oneAPI and openCV
 
 ***Under construction***
 
-Below, a quick description of how to manually install the VisionPaste project.
+Below, a quick description of how to manually install the ***oneapi-antispoofing*** project.
 
 ### Prepare ambient
 
