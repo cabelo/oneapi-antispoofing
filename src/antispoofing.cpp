@@ -1,9 +1,9 @@
 //==============================================================================
-//
+// Alessandro de Oliveira Faria (A.K.A.CABELO)
+// Apache-2.0 license  
 //==============================================================================
-
-///
-///
+/// For more information see
+/// https://github.com/cabelo/oneapi-antispoofing
 /// @file
 
 #define __STDC_WANT_LIB_EXT1__ 1
@@ -25,6 +25,11 @@
 
 #define MAX_PATH    260
 #include "common.hpp"
+#include "util.h"
+
+#define BITSTREAM_BUFFER_SIZE      2000000
+#define MAJOR_API_VERSION_REQUIRED 2
+#define MINOR_API_VERSION_REQUIRED 2
 
 int _last_left;
 int _last_top;
@@ -76,6 +81,7 @@ int main(int argc, char *argv[]) {
     _last_right = 0;
     _last_bottom = 0;
 
+    bool isFailed = false;
     int inpWidth = 416;
     int inpHeight = 416;
     float confThreshold = 0.25;
@@ -90,52 +96,73 @@ int main(int argc, char *argv[]) {
     cv::dnn::Net net = cv::dnn::readNet(modelPath, configPath);
     std::vector<String> outNames = net.getUnconnectedOutLayersNames();
 
+    // variables used only in 2.x version
+    mfxConfig cfg[3];
+    mfxVariant cfgVal[3];
+    mfxLoader loader = NULL;
+    mfxBitstream bitstream          = {};
+    mfxVideoParam decodeParams      = {};
+    mfxStatus sts                   = MFX_ERR_NONE;
+    mfxSession session              = NULL;
 
-    // initialize  session
-    mfxInitParam initPar   = { 0 };
-    initPar.Version.Major  = 1;
-    initPar.Version.Minor  = 35;
-    initPar.Implementation = MFX_IMPL_SOFTWARE;
 
-    mfxSession session;
-    mfxStatus sts = MFXInitEx(initPar, &session);
-    if (sts != MFX_ERR_NONE) {
-        fclose(fSource);
-        //fclose(fSink);
-        puts("MFXInitEx error.  Could not initialize session");
-        return 1;
-    }
+    // Initialize VPL session
+    loader = MFXLoad();
+    VERIFY(NULL != loader, "MFXLoad failed -- is implementation in path?");
 
-    // prepare input bitstream
-    mfxBitstream mfxBS = { 0 };
-    mfxBS.MaxLength    = 2000000;
-    std::vector<mfxU8> input_buffer;
-    input_buffer.resize(mfxBS.MaxLength);
-    mfxBS.Data = input_buffer.data();
+    // Implementation used must be the type requested from command line
+    cfg[0] = MFXCreateConfig(loader);
+    VERIFY(NULL != cfg[0], "MFXCreateConfig failed")
 
-    //MFX_CODEC_AVC  MFX_CODEC_HEVC
+    // Implementation must provide an HEVC decoder
+    cfg[1] = MFXCreateConfig(loader);
+    VERIFY(NULL != cfg[1], "MFXCreateConfig failed")
+    cfgVal[1].Type     = MFX_VARIANT_TYPE_U32;
+    cfgVal[1].Data.U32 = MFX_CODEC_HEVC;
+    sts                = MFXSetConfigFilterProperty(
+        cfg[1],
+        (mfxU8 *)"mfxImplDescription.mfxDecoderDescription.decoder.CodecID",
+        cfgVal[1]);
+    VERIFY(MFX_ERR_NONE == sts, "MFXSetConfigFilterProperty failed for decoder CodecID");
+
+    // Implementation used must provide API version 2.2 or newer
+    cfg[2] = MFXCreateConfig(loader);
+    VERIFY(NULL != cfg[2], "MFXCreateConfig failed")
+    cfgVal[2].Type     = MFX_VARIANT_TYPE_U32;
+    cfgVal[2].Data.U32 = VPLVERSION(MAJOR_API_VERSION_REQUIRED, MINOR_API_VERSION_REQUIRED);
+    sts                = MFXSetConfigFilterProperty(cfg[2],
+                                     (mfxU8 *)"mfxImplDescription.ApiVersion.Version",
+                                     cfgVal[2]);
+    VERIFY(MFX_ERR_NONE == sts, "MFXSetConfigFilterProperty failed for API version");
+
+    sts = MFXCreateSession(loader, 0, &session);
+    VERIFY(MFX_ERR_NONE == sts,
+           "Cannot create session -- no implementations meet selection criteria");
+
+
+    // Print info about implementation loaded
+    ShowImplementationInfo(loader, 0);
+
+    // Prepare input bitstream and start decoding
+    bitstream.MaxLength = BITSTREAM_BUFFER_SIZE;
+    bitstream.Data      = (mfxU8 *)calloc(bitstream.MaxLength, sizeof(mfxU8));
+    VERIFY(bitstream.Data, "Not able to allocate input buffer");
+    bitstream.CodecId = MFX_CODEC_HEVC;
+
+    // Pre-parse input stream
+    sts = ReadEncodedStream(bitstream, fSource);
+    VERIFY(MFX_ERR_NONE == sts, "Error reading bitstream\n");
+
+    decodeParams.mfx.CodecId = MFX_CODEC_HEVC;
+    decodeParams.IOPattern   = MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
+    sts                      = MFXVideoDECODE_DecodeHeader(session, &bitstream, &decodeParams);
+    VERIFY(MFX_ERR_NONE == sts, "Error decoding header\n");
+    
     mfxU32 codecID = MFX_CODEC_HEVC;
-    //mfxU32 codecID = MFX_CODEC_AVC;
-	    
-    ReadEncodedStream(mfxBS, codecID, fSource);
 
-    // initialize decode parameters from stream header
-    mfxVideoParam mfxDecParams;
-    memset(&mfxDecParams, 0, sizeof(mfxDecParams));
-    mfxDecParams.mfx.CodecId = codecID;
-    mfxDecParams.IOPattern   = MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
-    sts = MFXVideoDECODE_DecodeHeader(session, &mfxBS, &mfxDecParams);
-    if (sts != MFX_ERR_NONE) {
-        fclose(fSource);
-        printf("Problem decoding header.  DecodeHeader sts=%d\n", sts);
-        return 1;
-    }
-
-    // Query number required surfaces for decoder
     mfxFrameAllocRequest DecRequest = { 0 };
-    MFXVideoDECODE_QueryIOSurf(session, &mfxDecParams, &DecRequest);
+    MFXVideoDECODE_QueryIOSurf(session, &decodeParams, &DecRequest);
 
-    // Determine the required number of surfaces for decoder output
     mfxU16 nSurfNumDec = DecRequest.NumFrameSuggested;
 
     std::vector<mfxFrameSurface1> decode_surfaces;
@@ -147,10 +174,11 @@ int main(int argc, char *argv[]) {
         puts("Fail to allocate decode frame memory surface");
         return 1;
     }
+
     // initialize surface pool for decode (I420 format)
-    mfxU32 surfaceSize = GetSurfaceSize(mfxDecParams.mfx.FrameInfo.FourCC,
-                                        mfxDecParams.mfx.FrameInfo.Width,
-                                        mfxDecParams.mfx.FrameInfo.Height);
+    mfxU32 surfaceSize = GetSurfaceSize(decodeParams.mfx.FrameInfo.FourCC,
+                                        decodeParams.mfx.FrameInfo.Width,
+                                        decodeParams.mfx.FrameInfo.Height);
     if (surfaceSize == 0) {
         fclose(fSource);
         //fclose(fSink);
@@ -162,14 +190,14 @@ int main(int argc, char *argv[]) {
     output_buffer.resize(framePoolBufSize);
     mfxU8 *DECoutbuf = output_buffer.data();
 
-    mfxU16 surfW = (mfxDecParams.mfx.FrameInfo.FourCC == MFX_FOURCC_I010)
-                       ? mfxDecParams.mfx.FrameInfo.Width * 2
-                       : mfxDecParams.mfx.FrameInfo.Width;
-    mfxU16 surfH = mfxDecParams.mfx.FrameInfo.Height;
+    mfxU16 surfW = (decodeParams.mfx.FrameInfo.FourCC == MFX_FOURCC_I010)
+                       ? decodeParams.mfx.FrameInfo.Width * 2
+                       : decodeParams.mfx.FrameInfo.Width;
+    mfxU16 surfH = decodeParams.mfx.FrameInfo.Height;
 
     for (mfxU32 i = 0; i < nSurfNumDec; i++) {
         decSurfaces[i]        = { 0 };
-        decSurfaces[i].Info   = mfxDecParams.mfx.FrameInfo;
+        decSurfaces[i].Info   = decodeParams.mfx.FrameInfo;
         size_t buf_offset     = static_cast<size_t>(i) * surfaceSize;
         decSurfaces[i].Data.Y = DECoutbuf + buf_offset;
         decSurfaces[i].Data.U = DECoutbuf + buf_offset + (surfW * surfH);
@@ -178,14 +206,25 @@ int main(int argc, char *argv[]) {
         decSurfaces[i].Data.Pitch = surfW;
     }
 
-    // input parameters finished, now initialize decode
-    sts = MFXVideoDECODE_Init(session, &mfxDecParams);
-    if (sts != MFX_ERR_NONE) {
-        fclose(fSource);
-        //fclose(fSink);
-        puts("Could not initialize decode");
-        exit(1);
+    sts = MFXVideoDECODE_Init(session, &decodeParams);
+    VERIFY(MFX_ERR_NONE == sts, "Error initializing decode\n");
+
+    printf("Output colorspace: ");
+    switch (decodeParams.mfx.FrameInfo.FourCC) {
+        case MFX_FOURCC_I420: // CPU output
+            printf("I420 (aka yuv420p)\n");
+            break;
+        case MFX_FOURCC_NV12: // GPU output
+            printf("NV12\n");
+            break;
+        default:
+            printf("Unsupported color format\n");
+            isFailed = true;
+            //goto end;
+            exit(1);
+            break;
     }
+	
     // ------------------
     // main loop
     // ------------------
@@ -199,13 +238,13 @@ int main(int argc, char *argv[]) {
         int nIndex      = GetFreeSurfaceIndex(decSurfaces, nSurfNumDec);
         while (stillgoing) {
             // submit async decode request
-            sts = MFXVideoDECODE_DecodeFrameAsync(session, &mfxBS, &decSurfaces[nIndex], &pmfxOutSurface, &syncp);
+            sts = MFXVideoDECODE_DecodeFrameAsync(session, &bitstream, &decSurfaces[nIndex], &pmfxOutSurface, &syncp);
 
             // next step actions provided by application
             switch (sts) {
                 case MFX_ERR_MORE_DATA: // more data is needed to decode
-                    ReadEncodedStream(mfxBS, codecID, fSource);
-                    if (mfxBS.DataLength == 0)
+                    ReadEncodedStream(bitstream, codecID, fSource);
+                    if (bitstream.DataLength == 0)
                         stillgoing = false; // stop if end of file
                     break;
                 case MFX_ERR_MORE_SURFACE: // feed a fresh surface to decode
@@ -285,9 +324,7 @@ int main(int argc, char *argv[]) {
             std::vector<cv::Mat> outs;
             net.forward(outs, outNames);
 	    postprocess(_frame, outs, net, confThreshold, nmsThreshold,  classes);
-
             cv::waitKey(3);
-
         }
     }
 
@@ -305,7 +342,6 @@ mfxStatus ReadEncodedStream(mfxBitstream &bs, mfxU32 codecid, FILE *f) {
     bs.DataLength = static_cast<mfxU32>(fread(bs.Data, 1, bs.MaxLength, f));
     return MFX_ERR_NONE;
 }
-
 
 // Return the surface size in bytes given format and dimensions
 mfxU32 GetSurfaceSize(mfxU32 FourCC, mfxU32 width, mfxU32 height) {
@@ -341,7 +377,7 @@ char *ValidateFileName(char *in) {
 
 // Print usage message
 void Usage(void) {
-    printf("Usage: hello-decode SOURCE\n\n");
+    printf("Usage: antispoofinge [SOURCE-VIDEO-FILE.h265] y\n");
 }
 
 cv::Mat Frame(mfxFrameSurface1 *s)
@@ -377,7 +413,6 @@ cv::Mat Frame(mfxFrameSurface1 *s)
 
     return picBGR;
 }
-
 
 void postprocess(cv::Mat& frame, const std::vector<cv::Mat>& outs, cv::dnn::Net& net,float _confThreshold, float _nmsThreshold,  std::vector<std::string> _classes)
 {
@@ -474,5 +509,3 @@ void drawOk(int left, int top, int right, int bottom, cv::Mat& frame)
     }
     printf("OK! \n");
 }
-
-

@@ -80,6 +80,7 @@ $ ./antispoofing ../content/real-video.h265 y
 - [x] Publish in github
 - [x] Teste and port (if necessary) to oneAPI Beta10
 - [x] Teste and port (if necessary) to oneAPI 2023
+- [x] Teste and port to oneVPL 2023
 - [ ] Create webserver REST
 
 ## The final result
