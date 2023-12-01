@@ -2,10 +2,6 @@
 
 ***Certiface AntiSpoofing*** use oneAPI for fast decode video for perform liveness detection with inference. The system is capable of spotting fake faces and performing anti-face spoofing in face recognition systems.  The user could try to hold up a your photo. Maybe they even have a photo or video on their smartphone (obtained in facebook, for example)
 
-## Overview / Usage
-
-Certiface AntiSpoofing use oneAPI for fast decode video for perform liveness detection with inference. The system is capable of spotting fake faces and performing anti-face spoofing in face recognition systems. The user could try to hold up a your photo. Maybe they even have a photo or video on their smartphone (obtained in facebook, for example)
-
 This project/solution use harness heterogeneous computing architecture including CPUs and GPUs from servers to notebooks. The software tools such as oneVPL, computer vision techniques with openCV and Deep Learning technologies based on Intel features.​
 ​
 ## Methodology / Approach
