@@ -21,7 +21,7 @@ Below, a quick description of how to manually install the ***oneapi-antispoofing
 
 ### Prepare ambient
 
-Install the openCV and oneVPL library and set up the oneapi development environment as in the example below.
+Install the openCV and oneVPL library, set up the oneapi development environment as in the example below.
 
 ``` bash
 $ source /opt/intel/oneapi/setvars.sh 
